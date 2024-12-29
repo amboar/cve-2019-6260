@@ -5,6 +5,7 @@
 #define _HOST_H
 
 #include "ahb.h"
+#include "connection.h"
 
 #include "ccan/list/list.h"
 
@@ -12,6 +13,7 @@ struct host {
 	struct list_head bridges;
 };
 
+int host_init_new(struct host *ctx, struct connection_args *args);
 int host_init(struct host *ctx, int argc, char *argv[]);
 void host_destroy(struct host *ctx);
 

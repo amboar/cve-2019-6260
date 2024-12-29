@@ -8,6 +8,7 @@
 #include "bridge/ilpc.h"
 #include "bridge/l2a.h"
 #include "bridge/p2a.h"
+#include "connection.h"
 #include "compiler.h"
 #include "host.h"
 #include "log.h"
@@ -56,6 +57,78 @@ out:
     autodata_free(bridges);
 
     return ret;
+}
+
+int host_init_new(struct host *ctx, struct connection_args *args)
+{
+    struct bridge_driver **bridges;
+    size_t n_bridges = 0;
+    int rc;
+
+    list_head_init(&ctx->bridges);
+
+    bridges = autodata_get(bridge_drivers, &n_bridges);
+
+    char **argv;
+    int argc;
+
+    if (args->interface && !args->ip) {
+        argv = malloc(sizeof(char *));
+        if (!argv) {
+            rc = -ENOMEM;
+            goto cleanup_bridges;
+        }
+        argv[0] = strdup(args->interface);
+
+        argc = 1;
+    } else {
+        argv = malloc(5 * sizeof(char *));
+        if (!argv) {
+            rc = -ENOMEM;
+            goto cleanup_bridges;
+        }
+        argv[0] = strdup(args->interface);
+        argv[1] = strdup(args->ip);
+        argv[2] = malloc(6 * sizeof(char)); // Allocate memory for port string
+        sprintf(argv[2], "%d", args->port);
+        argv[3] = strdup(args->username);
+        argv[4] = strdup(args->password);
+
+        argc = 5;
+    }
+
+    for (size_t i = 0; i < n_bridges; i++) {
+        struct ahb *ahb;
+
+        if (bridges[i]->disabled) {
+            logd("Skipping bridge driver %s\n", bridges[i]->name);
+            continue;
+        }
+
+        logd("Trying bridge driver %s\n", bridges[i]->name);
+
+        if ((ahb = bridges[i]->probe(argc, argv))) {
+            struct bridge *bridge;
+
+            bridge = malloc(sizeof(*bridge));
+            if (!bridge) {
+                rc = -ENOMEM;
+                goto cleanup_bridges;
+            }
+
+            bridge->driver = bridges[i];
+            bridge->ahb = ahb;
+
+            list_add(&ctx->bridges, &bridge->entry);
+        }
+    }
+
+    rc = 0;
+
+cleanup_bridges:
+    autodata_free(bridges);
+
+    return rc;
 }
 
 int host_init(struct host *ctx, int argc, char *argv[])

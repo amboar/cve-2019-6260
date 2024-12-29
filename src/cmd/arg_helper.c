@@ -2,6 +2,8 @@
 // Copyright (C) 2024 Tan Siewert
 
 #include "arg_helper.h"
+#include "connection.h"
+#include "log.h"
 
 #include <argp.h>
 #include <errno.h>
@@ -25,6 +27,34 @@ int parse_subcommand(const struct argp* argp, char* name, void *arguments,
     subcommand->argv = argv;
 
     argp_parse(argp, argc, argv, ARGP_IN_ORDER, 0, arguments);
+
+    return 0;
+}
+
+int parse_via(int argi, struct argp_state *state, struct connection_args *args)
+{
+    if (argi >= state->argc)
+        return -EINVAL;
+
+    /* global argc - already processed arguments - 1 (for the `via` word) */
+    int argc = state->argc - argi - 1;
+    logt("parse_via found %d arguments\n", argc);
+
+    /* Preflight validation if argc is either 1 or 5 */
+    if (argc != 1 && argc != 5)
+        return -EINVAL;
+
+    args->interface = state->argv[argi + 1];
+    logt("parse_via interface: %s\n", args->interface);
+
+    if (argc == 1)
+        return 0;
+
+    args->ip = state->argv[argi + 2];
+    logt("parse_via ip: %s\n", args->ip);
+    args->port = atoi(state->argv[argi + 3]);
+    args->username = state->argv[argi + 4];
+    args->password = state->argv[argi + 5];
 
     return 0;
 }
